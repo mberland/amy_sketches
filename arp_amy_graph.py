@@ -56,11 +56,13 @@ octave_mult = 0
 ticks = 0
 gate_time = 0.5
 gate_start = -1.0
+last_encoder = -1
 
 random_patch = random.randint(1,255)
 amy.reverb(1)
 amy.echo(level=0.5, delay_ms=100, feedback=0.8)
 sequencer.tempo(120)
+amyboard.init_neopixels()
 
 HISTORY_LENGTH = 40
 X_MAX = 155
@@ -110,26 +112,29 @@ def fix_tempo():
     sequencer.tempo(60.0 / gate_time)
     
 
+def switch_prog():
+    global step, prog, chord, steps_per_bar, ticks, octave_mod, octave_mult, history, random_patch
+    amy.send(synth=1, vel=0)
+    random_patch = random.randint(1,255)
+    prog = random.choice(progressions)
+    octave_mult = random.randint(0,2)
+    octave_mod = -12 * octave_mult
+    prog = amy_shuffle(prog)
 
 def loop():
-    global step, prog, chord, steps_per_bar, ticks, octave_mod, octave_mult, history, random_patch
+    global step, prog, chord, steps_per_bar, ticks, octave_mod, octave_mult, history, random_patch, last_encoder
     ticks += 1
     fix_tempo()
 #    if 0 == ticks % (skips // 2):
 #        amyboard.cv_out(0.0, channel=1)
     if 0 == ticks % skips:
-        
         step += 1
-#        if (random.random() < 0.25):
-#            amy.send(synth=1, vel=0)
-
-        if 0 == step % (4 * steps_per_bar):
-            amy.send(synth=1, vel=0)
-            random_patch = random.randint(1,255)
-            prog = random.choice(progressions)
-            octave_mult = random.randint(0,2)
-            octave_mod = -12 * octave_mult
-            prog = amy_shuffle(prog)
+        current_encoder = amyboard.read_encoder(encoder=0)
+        if last_encoder != current_encoder:
+            last_encoder = current_encoder
+            amyboard.set_neopixel(0, random.randint(0, 128), random.randint(0, 128), random.randint(0, 128))
+            amyboard.show_neopixels()
+            switch_prog()
 
         chord = prog[(step // 4) % len(prog)]
         chord_notes = chords[chord]
