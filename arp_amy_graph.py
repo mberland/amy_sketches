@@ -1,4 +1,4 @@
-import random, amy, amyboard
+import random, amy, amyboard, sequencer, time
 
 chords = {
     "C": [60, 64, 67], "Dm": [62, 65, 69],
@@ -54,8 +54,13 @@ steps_per_bar = 4 * len(prog) * len(prog[0])
 octave_mod = 0
 octave_mult = 0
 ticks = 0
+gate_time = 0.5
+gate_start = -1.0
 
 random_patch = random.randint(1,255)
+amy.reverb(1)
+amy.echo(level=0.5, delay_ms=100, feedback=0.8)
+sequencer.tempo(120)
 
 HISTORY_LENGTH = 40
 X_MAX = 155
@@ -92,11 +97,24 @@ def add_history(val):
     history = history[1:] + [val]
 
 
+def fix_tempo():
+    global gate_start, gate_time
+    cv2 = amyboard.cv_in(channel=1)
+    if cv2 > 2.5:
+        if gate_start < 0:
+            gate_start = time.time()
+            print(gate_start)
+    elif gate_start > 0:
+        gate_time = time.time() - gate_start
+        gate_start = -1.0
+    sequencer.tempo(60.0 / gate_time)
+    
 
 
 def loop():
     global step, prog, chord, steps_per_bar, ticks, octave_mod, octave_mult, history, random_patch
     ticks += 1
+    fix_tempo()
 #    if 0 == ticks % (skips // 2):
 #        amyboard.cv_out(0.0, channel=1)
     if 0 == ticks % skips:
@@ -123,7 +141,9 @@ def loop():
         amyboard.display.fill(0)
         prog_str = prog[0] + f"{4-octave_mult} "  + " ".join(prog[1:])
         amyboard.display.text(prog_str, 2, 5, 255)
-        amyboard.display.text(f"patch = {random_patch}", 2, 15, 255)
+        amyboard.display.text(f"patch {random_patch}", 2, 15, 255)
+        amyboard.display.text(f"   cv {amyboard.cv_in(channel=0):.1f} {amyboard.cv_in(channel=1):.1f}",2,25,255)
+        amyboard.display.text(f"tempo {sequencer.tempo():.0f}",2,35,255)
         
         add_history(midi_to_oct_cv(note))
         draw_history()
