@@ -60,43 +60,46 @@ last_encoder = -1
 
 random_patch = random.randint(1,255)
 amy.reverb(1)
-amy.echo(level=0.5, delay_ms=100, feedback=0.8)
+amy.echo(level=0.8, delay_ms=200, feedback=0.8)
 sequencer.tempo(120)
-amyboard.init_neopixels()
 
-HISTORY_LENGTH = 40
-X_MAX = 155
+HISTORY_LENGTH = 30
+X_MAX = 90.0
 X_BUF = 4
-Y_BUF = 100
-X_MULT = 3
-Y_MULT = 4
-history = [random.random() for _ in range(HISTORY_LENGTH)]
 
-def draw_history():
-    global history
-    X_MULT = X_MAX // len(history)
-    y_min = min(history)
-    y_max = max(history)
-    y_diff = y_max-y_min
-    Y_MULT = 40 // max(1,y_diff)
-    Y_BUF = 125 - abs(int(y_min * Y_MULT))
-    val = 0
-    amyboard.display.text(f"MAX {y_max:+.1f}",4,50,255)
-    amyboard.display.text(f"MIN {y_min:+.1f}",4,60,255)
-    amyboard.display.text(f"{history[-1]:+.1f}",85,55,255)
-    for i in range(len(history)):
-        last_val = val
-        val = history[i]
-        x1 = X_BUF + i*X_MULT
+    
+
+history = [random.random() for _ in range(HISTORY_LENGTH)]
+cv1s = [0.0 for _ in range(HISTORY_LENGTH)]
+X_MULT = X_MAX / HISTORY_LENGTH
+
+
+def draw_graph(data, y_mid=100, y_size=40):
+    global X_MAX, X_BUF, X_MULT
+    y_min = y_mid + (y_size // 2)
+    hist_min: float = min(data)
+    hist_max: float = max(data)
+    hist_range: float = max(0.1, hist_max - hist_min)
+    val = (data[0] - hist_min) / hist_range
+    amyboard.display.text(f"{hist_max:+.1f}",round(X_MAX+X_BUF+1),y_mid-y_size//2,255)
+    amyboard.display.text(f"{hist_min:+.1f}",round(X_MAX+X_BUF+1),y_mid+(y_size//2)-5,255)
+    for i in range(len(data)):
+        x1 = X_BUF + round(i*X_MULT)
         x2 = x1 + 2
-        y1 = Y_BUF - int(Y_MULT * last_val)
-        y2 = Y_BUF - int(Y_MULT * val)
+        if (hist_max - hist_min) < 0.01:
+            y1 = y_mid
+            y2 = y_mid
+        else:
+            last_val = val
+            val = (data[i] - hist_min) / hist_range
+            y1 = y_min - int(y_size * last_val)
+            y2 = y_min - int(y_size * val)
         amyboard.display.line(x1,y1,x2,y2,255)
     amyboard.display.refresh()
 
-def add_history(val):
-    global history
-    history = history[1:] + [val]
+def enqueue(data,val):
+    data = data[1:] + [val]
+    return data
 
 
 def fix_tempo():
@@ -105,7 +108,6 @@ def fix_tempo():
     if cv2 > 2.5:
         if gate_start < 0:
             gate_start = time.time()
-            print(gate_start)
     elif gate_start > 0:
         gate_time = time.time() - gate_start
         gate_start = -1.0
@@ -122,7 +124,7 @@ def switch_prog():
     prog = amy_shuffle(prog)
 
 def loop():
-    global step, prog, chord, steps_per_bar, ticks, octave_mod, octave_mult, history, random_patch, last_encoder
+    global step, prog, chord, steps_per_bar, ticks, octave_mod, octave_mult, history, random_patch, last_encoder, cv1s
     ticks += 1
     fix_tempo()
 #    if 0 == ticks % (skips // 2):
@@ -135,7 +137,7 @@ def loop():
             amyboard.set_neopixel(0, random.randint(0, 128), random.randint(0, 128), random.randint(0, 128))
             amyboard.show_neopixels()
             switch_prog()
-
+            
         chord = prog[(step // 4) % len(prog)]
         chord_notes = chords[chord]
         note = chord_notes[step % len(chord_notes)] + octave_mod
@@ -145,11 +147,13 @@ def loop():
 
         amyboard.display.fill(0)
         prog_str = prog[0] + f"{4-octave_mult} "  + " ".join(prog[1:])
-        amyboard.display.text(prog_str, 2, 5, 255)
+        amyboard.display.text("~> " + prog_str, 2, 5, 255)
         amyboard.display.text(f"patch {random_patch}", 2, 15, 255)
         amyboard.display.text(f"   cv {amyboard.cv_in(channel=0):.1f} {amyboard.cv_in(channel=1):.1f}",2,25,255)
         amyboard.display.text(f"tempo {sequencer.tempo():.0f}",2,35,255)
         
-        add_history(midi_to_oct_cv(note))
-        draw_history()
+        history = enqueue(history, midi_to_oct_cv(note))
+        cv1s = enqueue(cv1s, amyboard.cv_in(channel=0))
+        draw_graph(cv1s,75,27)
+        draw_graph(history,110,27)
         amyboard.display_refresh()
