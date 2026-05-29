@@ -46,9 +46,30 @@ def midi_to_oct_cv(note):
 def amy_shuffle(xs):
     return sorted(xs, key=lambda x: random.random())
 
+def cv1_to_prog_index(cv1, progressions):
+    """
+    Map cv1 input (-10 to 10) to an index in the progressions list.
+    
+    Args:
+        cv1: Float value in range [-10, 10]
+        progressions: List of progressions
+    
+    Returns:
+        Integer index in range [0, len(progressions) - 1]
+    """
+    # Normalize cv1 from [-10, 10] to [0, 1]
+    normalized = (cv1 + 10) / 20.0
+    
+    # Scale to [0, len(progressions) - 1]
+    max_index = len(progressions) - 1
+    index = round(normalized * max_index)
+    
+    # Clamp to valid range
+    return amy_clamp(index, 0, max_index)
+
 step = 0
 skips = 4
-prog = amy_shuffle(random.choice(progressions))
+prog = amy_shuffle(progressions[0])
 chord = prog[step % len(prog)]
 steps_per_bar = 4 * len(prog) * len(prog[0])
 octave_mod = 0
@@ -67,12 +88,9 @@ HISTORY_LENGTH = 30
 X_MAX = 90.0
 X_BUF = 4
 
-    
-
-history = [random.random() for _ in range(HISTORY_LENGTH)]
+history = [0.0 for _ in range(HISTORY_LENGTH)]
 cv1s = [0.0 for _ in range(HISTORY_LENGTH)]
 X_MULT = X_MAX / HISTORY_LENGTH
-
 
 def draw_graph(data, y_mid=100, y_size=40):
     global X_MAX, X_BUF, X_MULT
@@ -101,34 +119,38 @@ def enqueue(data,val):
     data = data[1:] + [val]
     return data
 
-
 def fix_tempo():
+    """
+    Updates the tempo based on the input from cv2. If the gate signal goes 
+    from low to high, the tempo is calculated based on the time between 
+    the last high and the current high.
+    """
     global gate_start, gate_time
     cv2 = amyboard.cv_in(channel=1)
-    if cv2 > 2.5:
-        if gate_start < 0:
-            gate_start = time.time()
-    elif gate_start > 0:
+    gate_is_high = cv2 > 2.5
+    gate_was_high = gate_start > 0
+    if gate_is_high and not gate_was_high:
+        gate_start = time.time()
+    elif not gate_is_high and gate_was_high:
         gate_time = time.time() - gate_start
         gate_start = -1.0
-    sequencer.tempo(60.0 / gate_time)
-    
+        sequencer.tempo(60.0 / gate_time)    
 
 def switch_prog():
     global step, prog, chord, steps_per_bar, ticks, octave_mod, octave_mult, history, random_patch
     amy.send(synth=1, vel=0)
     random_patch = random.randint(1,255)
-    prog = random.choice(progressions)
+    cv1 = amyboard.cv_in(channel=0)
+    prog_index = cv1_to_prog_index(cv1, progressions)
+    prog = progressions[prog_index]
     octave_mult = random.randint(0,2)
     octave_mod = -12 * octave_mult
-    prog = amy_shuffle(prog)
 
 def loop():
     global step, prog, chord, steps_per_bar, ticks, octave_mod, octave_mult, history, random_patch, last_encoder, cv1s
     ticks += 1
     fix_tempo()
-#    if 0 == ticks % (skips // 2):
-#        amyboard.cv_out(0.0, channel=1)
+    # refresh rate to avoid overloading the display
     if 0 == ticks % skips:
         step += 1
         current_encoder = amyboard.read_encoder(encoder=0)
@@ -141,8 +163,8 @@ def loop():
         chord = prog[(step // 4) % len(prog)]
         chord_notes = chords[chord]
         note = chord_notes[step % len(chord_notes)] + octave_mod
-#        amyboard.cv_out(midi_to_oct_cv(note), channel=0)
-#        amyboard.cv_out(5.0, channel=1)
+        # amyboard.cv_out(midi_to_oct_cv(note), channel=0)
+        # amyboard.cv_out(5.0, channel=1)
         amy.send(synth=1, patch=random_patch, note=note, vel=0.9)
 
         amyboard.display.fill(0)
