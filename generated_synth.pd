@@ -1,0 +1,13 @@
+#N canvas 200 200 450 300 12;
+#X obj 50 40 line;
+#X obj 50 80 osc~ 440;
+#X obj 180 80 floatatom 0 0 0 0 - - - 0;
+#X obj 50 130 *~ 0.1;
+#X obj 50 180 dac~;
+#X msg 50 10 220 500;
+#X connect 0 0 1 0;
+#X connect 1 0 3 0;
+#X connect 2 0 3 1;
+#X connect 3 0 4 0;
+#X connect 3 0 4 1;
+#X connect 5 0 0 0;
