@@ -1,8 +1,8 @@
-import random, amy, amyboard, sequencer, time
+import random, amyboard, sequencer, time
 
-scales = { "major": [0, 2, 4, 5, 7, 9, 11], "minor": [0, 2, 3, 5, 7, 8, 10] }
-intervals = {"dim": [0, 3, 6],"min": [0, 3, 7],"maj": [0, 4, 7],"sus": [0, 5, 7]}
-extensions = {"6": 9, "m7": 10, "M7": 11, "9": 14}
+#scales = { "major": [0, 2, 4, 5, 7, 9, 11], "minor": [0, 2, 3, 5, 7, 8, 10] }
+#intervals = {"dim": [0, 3, 6],"min": [0, 3, 7],"maj": [0, 4, 7],"sus": [0, 5, 7]}
+#extensions = {"6": 9, "m7": 10, "M7": 11, "9": 14}
 
 chords = {
     "C": [60, 64, 67], "Dm": [62, 65, 69],
@@ -12,24 +12,6 @@ chords = {
 }
 
 progressions = [
-    # ["C", "Am", "F", "G"],
-    # ["C", "Dm", "G", "Am"],
-    # ["C", "F", "G", "Am"],
-    # ["C", "G", "Em", "C"],
-    # ["C", "G", "Am", "Dm"],
-    # ["C", "Dm", "Am", "F"],
-    # ["C", "G", "F", "C"],
-    # ["C", "F", "C", "G"],
-    # ["Dm", "G", "Am", "C"],
-    # ["Dm", "G", "C", "Am"],
-    # ["Dm", "Em", "C", "Dm"],
-    # ["Dm", "C", "G", "Dm"],
-    # ["F", "C", "G", "Am"],
-    # ["F", "G", "Am", "C"],
-    # ["G", "C", "Am", "F"],
-    # ["G", "C", "Dm", "G"],
-    # ["G", "Em", "C", "Dm"],
-    # ["G", "Am", "Dm", "G"],
     ["Am", "Dm", "G", "C"],
     ["Am", "Dm", "F", "C"],
     ["Am", "F", "C", "Dm"],
@@ -42,8 +24,6 @@ progressions = [
 def amy_clamp(x, min_val, max_val):
     return max(min(x, max_val), min_val)
 
-# MIDI note 60 is C4 = 0V
-# octave is 12 semitones
 def midi_to_oct_cv(note):
     return amy_clamp((note - 60.0) / 12.0, -5.0, 5.0)
 
@@ -52,7 +32,7 @@ def amy_shuffle(xs):
 
 step = 0
 skips = 4
-prog = amy_shuffle(random.choice(progressions))
+prog = random.choice(progressions)
 chord = prog[step % len(prog)]
 steps_per_bar = 4 * len(prog) * len(prog[0])
 octave_mod = 0
@@ -62,7 +42,6 @@ gate_time = 0.5
 gate_start = -1.0
 last_encoder = -1
 
-random_patch = random.randint(1,255)
 sequencer.tempo(120)
 
 HISTORY_LENGTH = 30
@@ -71,23 +50,23 @@ X_BUF = 4
 
     
 
-history = [random.random() for _ in range(HISTORY_LENGTH)]
+history = [random.randint(40, 80) for _ in range(HISTORY_LENGTH)]
 X_MULT = X_MAX / HISTORY_LENGTH
 
 
-def draw_graph(data, y_mid=100, y_size=40):
+def draw_graph(data, y_mid=100, y_size=0.4):
     global X_MAX, X_BUF, X_MULT
     y_min = y_mid + (y_size // 2)
-    hist_min: float = min(data)
-    hist_max: float = max(data)
-    hist_range: float = max(0.1, hist_max - hist_min)
+    hist_min = min(data)
+    hist_max = max(data)
+    hist_range = 1.0 * max(1, hist_max - hist_min)
     val = (data[0] - hist_min) / hist_range
-    amyboard.display.text(f"{hist_max:+.1f}",round(X_MAX+X_BUF+1),y_mid-y_size//2,255)
-    amyboard.display.text(f"{hist_min:+.1f}",round(X_MAX+X_BUF+1),y_mid+(y_size//2)-5,255)
+    amyboard.display.text(f"{midi_to_oct_cv(hist_max):+.1f}",round(X_MAX+X_BUF+1),y_mid-y_size//2,255)
+    amyboard.display.text(f"{midi_to_oct_cv(hist_min):+.1f}",round(X_MAX+X_BUF+1),y_mid+(y_size//2)-5,255)
     for i in range(len(data)):
         x1 = X_BUF + round(i*X_MULT)
         x2 = x1 + 2
-        if (hist_max - hist_min) < 0.01:
+        if (hist_max - hist_min) < 1:
             y1 = y_mid
             y2 = y_mid
         else:
@@ -98,9 +77,9 @@ def draw_graph(data, y_mid=100, y_size=40):
         amyboard.display.line(x1,y1,x2,y2,255)
     amyboard.display.refresh()
 
-def enqueue(data,val):
-    data = data[1:] + [val]
-    return data
+#def enqueue(data,val):
+#    data = data[1:] + [val]
+#    return data
 
 def update_display():
     global history, octave_mult, prog
@@ -108,8 +87,12 @@ def update_display():
     prog_str = prog[0] + f"{4-octave_mult} "  + " ".join(prog[1:])
     amyboard.display.text("~> " + prog_str, 2, 5, 255)
     amyboard.display.text(f"enc {amyboard.read_encoder(encoder=0, seesaw_dev=54)}", 2, 15, 255)    
-    amyboard.display.text(f"tempo {sequencer.tempo():.0f}",2,35,255)
+    amyboard.display.text(f"tempo {sequencer.tempo():.0f}",2,25,255)
+    beat_string = ""
+    if btoggle:
+        beat_string = "XXXXXXXXXXXX"
     draw_graph(history,110,27)
+    amyboard.display.text(beat_string, 2, 35, 255)
     amyboard.display_refresh()
 
 
@@ -122,7 +105,8 @@ def fix_tempo():
     elif gate_start > 0:
         gate_time = time.time() - gate_start
         gate_start = -1.0
-    sequencer.tempo(60.0 / gate_time)
+    if gate_time > 0.01:
+        sequencer.tempo(60.0 / gate_time)
     
 
 def switch_prog():
@@ -132,14 +116,15 @@ def switch_prog():
     octave_mod = -12 * octave_mult
 
 chord_num = -1
-
+btoggle = False
 
 def loop():
-    global step, prog, chord, chord_num, steps_per_bar, ticks, octave_mod, octave_mult, history, random_patch, last_encoder, cv1s
+    global step, prog, chord, chord_num, steps_per_bar, ticks, octave_mod, octave_mult, history, last_encoder, btoggle
     ticks += 1
     fix_tempo()
     if 0 == ticks % (skips // 2):
         amyboard.cv_out(0, channel=1)
+        btoggle = not btoggle
     if 0 == ticks % skips:
         update_display()
         step += 1
@@ -151,19 +136,8 @@ def loop():
         chord = prog[chord_num]
         chord_notes = chords[chord]
         note = chord_notes[step % len(chord_notes)] + octave_mod
-
         amyboard.cv_out(midi_to_oct_cv(note), channel=0)
         amyboard.cv_out(5.0, channel=1)
-        
-        history = enqueue(history, midi_to_oct_cv(note))
-
-# Do not edit. Set automatically by the knobs on AMYboard Online.
-_auto_generated_knobs = """
-i1ic255Z
-i1iv6in4Z
-i1v0w20F200.000,1.000,,,5.000c2L1G4A,,1000,0.200,100,0.000B0,1.000,1000,0.200,1000,0.000Z
-i1v1w4a,,0.000f4.000,0.000,,,,,0.000A,,10000,Z
-i1v2w1a,,0.000,0.000c3L1Z
-i1v3w2a,,0.000,0.000f220.000L1Z
-i1V1.000x0.000,0.000,0.000M0.000,500.000,,0.000,0.000k0.000,320.000,0.500,0.500h0.000,0.850,0.500,3000.000Z
-"""
+        btoggle = not btoggle
+        history.append(note)
+        history.remove(history[0])
