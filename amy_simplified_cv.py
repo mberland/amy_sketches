@@ -80,33 +80,50 @@ def draw_graph(data, y_mid=100, y_size=0.4):
 #def enqueue(data,val):
 #    data = data[1:] + [val]
 #    return data
+bpm_tracker = 0
+BPM_WIDTH = 10
+
+def draw_bpm(y):
+    global btoggle, bpm_tracker, BPM_WIDTH
+    amyboard.display.fill_rect(bpm_tracker, y, BPM_WIDTH, 10, 255)
+
+
 
 def update_display():
-    global history, octave_mult, prog
+    global history, octave_mult, prog, cv1, cv2
     amyboard.display.fill(0)
     prog_str = prog[0] + f"{4-octave_mult} "  + " ".join(prog[1:])
     amyboard.display.text("~> " + prog_str, 2, 5, 255)
     amyboard.display.text(f"enc {amyboard.read_encoder(encoder=0, seesaw_dev=54)}", 2, 15, 255)    
     amyboard.display.text(f"tempo {sequencer.tempo():.0f}",2,25,255)
-    beat_string = ""
-    if btoggle:
-        beat_string = "XXXXXXXXXXXX"
+    amyboard.display.text(f"1:{cv1:+.1f} 2:{cv2:+.1f}", 2, 35, 255)
+    draw_bpm(45)
     draw_graph(history,110,27)
-    amyboard.display.text(beat_string, 2, 35, 255)
     amyboard.display_refresh()
 
-
-def fix_tempo():
-    global gate_start, gate_time
+cv1 = 0.0
+cv2 = 0.0
+ctime = time.time()
+def cv_in_check():
+    global gate_start, gate_time, cv1, cv2, ctime
+    cv1 = amyboard.cv_in(channel=0)
     cv2 = amyboard.cv_in(channel=1)
+    last_time = ctime
+    ctime = time.time()
+    if (ctime - last_time) > 0.2:
+        update_display()
+    if cv1 > 10 or cv1 < -10:
+        cv1 = 0.0
+    if cv2 > 10 or cv2 < -10:
+        cv2 = 0.0
     if cv2 > 2.5:
         if gate_start < 0:
-            gate_start = time.time()
+            gate_start = ctime
     elif gate_start > 0:
-        gate_time = time.time() - gate_start
+        gate_time = ctime - gate_start
         gate_start = -1.0
-    if gate_time > 0.01:
-        sequencer.tempo(60.0 / gate_time)
+        if gate_time > 0.1:
+            sequencer.tempo(60.0 / gate_time)
     
 
 def switch_prog():
@@ -119,18 +136,24 @@ chord_num = -1
 btoggle = False
 
 def loop():
-    global step, prog, chord, chord_num, steps_per_bar, ticks, octave_mod, octave_mult, history, last_encoder, btoggle
+    global step, prog, chord, chord_num, steps_per_bar, ticks, octave_mod, octave_mult, history, last_encoder, btoggle, BPM_WIDTH, bpm_tracker
     ticks += 1
-    fix_tempo()
+    cv_in_check()
     if 0 == ticks % (skips // 2):
         amyboard.cv_out(0, channel=1)
         btoggle = not btoggle
     if 0 == ticks % skips:
-        update_display()
+        bpm_tracker = (BPM_WIDTH + bpm_tracker) % (128 - BPM_WIDTH)
         step += 1
         current_encoder = amyboard.read_encoder(encoder=0, seesaw_dev=54)
         if last_encoder != current_encoder:
+            bpm = sequencer.tempo()
+            if last_encoder > current_encoder:                
+                bpm = min(300, bpm + 20)
+            else:
+                bpm = max(20, bpm - 20)
             last_encoder = current_encoder
+            sequencer.tempo(bpm)
             switch_prog()
         chord_num = (step // 4) % len(prog)
         chord = prog[chord_num]
