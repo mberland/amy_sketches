@@ -7,12 +7,12 @@ def amy_clamp(x, min_val, max_val):
 def midi_to_oct_cv(note):
     return amy_clamp((note - 60.0) / 12.0, -5.0, 5.0)
 
+def oct_cv_to_midi(cv):
+    return int(60 + 12 * amy_clamp(cv, -5.0, 5.0))
+
 def amy_shuffle(xs):
     return sorted(xs, key=lambda x: random.random())
 
-step = 0
-skips = 4
-ticks = 0
 last_encoder = -1
 
 HISTORY_LENGTH = 50
@@ -79,17 +79,25 @@ cv1 = 0.0
 cv2 = 0.0
 update_display()
 
-sequencer.tempo(30)
+sequencer.tempo(60)
 
 ctime = time.time()
 last_time = ctime
+step = 0
+skips = 4
+ticks = 0
 
 def loop():
-    global cv1, cv2, history, last_time, ctime
-
-    cv1 = amyboard.cv_in(channel=0)
-    time.sleep(0.1)
-    cv2 = amyboard.cv_in(channel=1)	
+    global cv1, cv2, history, last_time, ctime, ticks
+    ticks += 1
+    cv1out = midi_to_oct_cv(oct_cv_to_midi(cv1))
+    cv2out = midi_to_oct_cv(oct_cv_to_midi(cv2))
+    amyboard.cv_out(channel=0, value=cv1out)
+    amyboard.cv_out(channel=1, value=cv2out)
+    if 0 == ticks % 2:
+        cv1 = amyboard.cv_in(channel=0)
+    else:
+        cv2 = amyboard.cv_in(channel=1)	
     history.append((int(history_scale * cv2),int(history_scale * cv1)))
     history.remove(history[0])
     update_display()
