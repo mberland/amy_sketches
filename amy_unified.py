@@ -98,7 +98,7 @@ def generate_note(prog,step,octave):
     chord_num = (step // 4) % len(prog)
     chord = prog[chord_num]
     chord_notes = chords[chord]
-    octave_mod = (4 - octave) * 12
+    octave_mod = (octave - 4) * 12
     note = chord_notes[step % len(chord_notes)] + octave_mod
     return midi_to_oct_cv(note)
 
