@@ -72,39 +72,6 @@ def draw_graph(data, y_min=15, y_max=85):
         amyboard.display.line(x1,y1,x2,y2,255)
     return True
 
-# def draw_graphs(ymin=15, ymax=128):
-#     global X_MAX, X_BUF, X_MULT, cv1history, cv2history
-#     all_data = cv1history + cv2history
-#     hist_min = min(all_data)
-#     hist_max = max(all_data)
-#     hist_range = max(1, hist_max - hist_min)
-#     cv1_scaled = [(d - hist_min) / (hist_range) for d in cv1history]
-#     cv2_scaled = [(d - hist_min) / (hist_range) for d in cv2history]
-#     y_bottom = ymax-20
-#     y_size = (y_bottom-ymin) / 2.0
-#     cv1y_min = ymin    
-#     cv2y_min = int(cv1y_min + y_size)
-
-#     if hist_range < 2:
-#         amyboard.display.text("SCOPE - NO DATA", 2, 5, 255)
-#     else:
-#         amyboard.display.text(f"SCOPE",2,5,255)
-#     amyboard.display.line(0,cv1y_min - 1,ymax,cv1y_min - 1,255)
-#     amyboard.display.line(0,cv2y_min,ymax,cv2y_min,255)
-#     amyboard.display.line(0,y_bottom,ymax,y_bottom,255)
-#     amyboard.display.text(f"{hist_min/history_scale:+.1f} >> {hist_max/history_scale:+.1f}",2,y_bottom+5,255)
-
-#     if hist_range > 2:
-#         for i in range(len(cv1history) - 1):
-#             x1 = X_BUF + int(i*X_MULT)
-#             x2 = x1 + 2
-#             cv1y1 = cv1y_min + int(y_size * cv1_scaled[i])
-#             cv1y2 = cv1y_min + int(y_size * cv1_scaled[i+1])
-#             cv2y1 = cv2y_min + int(y_size * cv2_scaled[i])
-#             cv2y2 = cv2y_min + int(y_size * cv2_scaled[i+1])
-#             amyboard.display.line(x1,cv1y1,x2,cv1y2,255)
-#             amyboard.display.line(x1,cv2y1,x2,cv2y2,255)
-
 last_encoder = -99
 def check_encoder():
     global last_encoder
@@ -155,7 +122,7 @@ def update_scope():
         prog_str = cv2prog[0] + f"2 "  + " ".join(cv2prog[1:])
         amyboard.display.text("~> " + prog_str, 2, 90, 255)
         amyboard.cv_out(generate_note(cv2prog,ticks//skips,2), channel=1)
-        
+
     amyboard.display_refresh()
 
 cv1 = 0.0
