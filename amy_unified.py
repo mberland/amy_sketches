@@ -1,4 +1,4 @@
-import random, amyboard, time, sequencer
+import random, amyboard, time, sequencer, amy
 
 chords = {
     "C": [60, 64, 67], "Dm": [62, 65, 69],
@@ -58,7 +58,6 @@ def draw_graph(data, y_min=15, y_max=85):
     hist_min = min(data)
     hist_max = max(data)
     if hist_max - hist_min < 2:
-#        amyboard.display.text(f"NO DATA",2,(y_max-y_min)//2+y_min,255)
         return False
     hist_range = 1.0 * max(1, hist_max - hist_min)
     amyboard.display.text(f"{hist_max/history_scale:+.1f}",round(X_MAX+X_BUF+1),y_min+5,255)
@@ -94,16 +93,18 @@ def change_progression():
     cv2prog = random.choice(progressions)
 
 
-def generate_note(prog,step,octave):
-    chord_num = (step // 4) % len(prog)
+def generate_note(prog,step,octave):    
+    chord_num = step % len(prog)
     chord = prog[chord_num]
     chord_notes = chords[chord]
     octave_mod = (octave - 4) * 12
     note = chord_notes[step % len(chord_notes)] + octave_mod
     return midi_to_oct_cv(note)
 
+last_note = None
+
 def update_scope():
-    global cv1history, cv2history, skips, ticks, last_encoder
+    global cv1history, cv2history, skips, ticks, last_encoder, is_audio, last_note
     amyboard.display.fill(0)
     amyboard.display.text(f"SCOPE: {sequencer.tempo()} BPM",2,5,255)
 
@@ -113,7 +114,12 @@ def update_scope():
     else:
         prog_str = cv1prog[0] + f"3 "  + " ".join(cv1prog[1:])
         amyboard.display.text("~> " + prog_str, 2, 40, 255)
-        amyboard.cv_out(generate_note(cv1prog,ticks//skips,3), channel=0)
+        note = generate_note(cv1prog,ticks//skips,3)
+        amyboard.cv_out(note, channel=0)
+        if is_audio and note != last_note:
+            amy.send(synth=1, vel=0)
+            amy.send(synth=1, note=oct_cv_to_midi(note), vel=1)
+        last_note = note
     
     amyboard.display.line(0,70,128,70,255)
     if draw_graph(cv2history,75,125):
@@ -121,7 +127,12 @@ def update_scope():
     else:
         prog_str = cv2prog[0] + f"2 "  + " ".join(cv2prog[1:])
         amyboard.display.text("~> " + prog_str, 2, 90, 255)
-        amyboard.cv_out(generate_note(cv2prog,ticks//skips,2), channel=1)
+        note = generate_note(cv2prog,ticks//skips,2)
+        amyboard.cv_out(note, channel=1)
+        if is_audio and note != last_note:
+            amy.send(synth=1, vel=0)
+            amy.send(synth=1, note=oct_cv_to_midi(note), vel=1)
+        last_note = note
 
     amyboard.display_refresh()
 
@@ -136,20 +147,26 @@ step = 0
 skips = 4
 ticks = 0
 
-is_quantizing = True
+amy.send(synth=1, patch=100)
+is_audio = True
 
 def loop():
     global cv1, cv2, cv1history, cv2history, last_time, ctime, ticks
     ticks += 1
 
-    if 0 == ticks % 2:
-        cv1 = amyboard.cv_in(channel=0)
-        cv1history.append(int(history_scale * cv1))
-        cv1history.remove(cv1history[0])
-    else:
-        cv2 = amyboard.cv_in(channel=1)
-        cv2history.append(int(history_scale * cv2))
-        cv2history.remove(cv2history[0])
+    cv1 = amyboard.cv_in(channel=0)
+    time.sleep(0.05)
+    cv2 = amyboard.cv_in(channel=1)
+    time.sleep(0.05)
+    
+    if cv1 < -8 or cv1 > 8:
+        cv1 = 0.0
+    if cv2 < -8 or cv2 > 8:
+        cv2 = 0.0
+    cv1history.append(int(history_scale * cv1))
+    cv1history.remove(cv1history[0])
+    cv2history.append(int(history_scale * cv2))
+    cv2history.remove(cv2history[0])
 
     check_encoder()
     update_scope()
